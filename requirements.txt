@@ -1,0 +1,7 @@
+streamlit
+PyMuPDF
+python-docx
+spacy
+scikit-learn
+openai
+python-dotenv
