@@ -1,32 +1,40 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import re
 
-def calculate_match_score(resume_text: str, job_description: str) -> float:
+def clean_text(text):
+    """Basic cleaning to help TF-IDF"""
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', '', text)
+    return text
+
+def calculate_match_score(resume_skills: list, jd_skills: list) -> float:
     """
-    Calculates the cosine similarity between the resume text and the job description
-    using TF-IDF vectorization.
-    Returns a score between 0 and 100.
+    Improved version: Compare list of skills rather than long paragraphs.
     """
-    if not resume_text or not job_description:
+    if not resume_skills or not jd_skills:
         return 0.0
 
-    documents = [resume_text, job_description]
+    # Convert lists back to strings for the vectorizer
+    resume_str = " ".join(resume_skills)
+    jd_str = " ".join(jd_skills)
     
-    # Initialize TF-IDF Vectorizer
-    # stop_words='english' removes common words like 'and', 'the', 'is'
-    vectorizer = TfidfVectorizer(stop_words='english')
+    documents = [resume_str, jd_str]
+    vectorizer = TfidfVectorizer()
     
     try:
-        # Fit and transform the documents
         tfidf_matrix = vectorizer.fit_transform(documents)
-        
-        # Calculate cosine similarity between the first document (resume) 
-        # and the second document (job description)
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])
         
-        # Extract the score (it's a 2D array) and convert to percentage
-        match_score = similarity[0][0] * 100
-        return round(match_score, 2)
+        # Boost the score
+        # Cosine similarity is mathematically conservative. 
+        # For resumes, a 0.3 (30%) is often actually a good match.
+        # We can apply a multiplier or a non-linear scaling to make it "human-readable"
+        raw_score = similarity[0][0]
+        
+        # Scaling logic: Make the score feel more like a grading system
+        adjusted_score = (raw_score ** 0.5) * 100 
+        
+        return round(min(adjusted_score, 100.0), 2)
     except Exception as e:
-        print(f"Error calculating match score: {e}")
         return 0.0

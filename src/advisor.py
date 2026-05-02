@@ -1,61 +1,65 @@
 import os
-from openai import OpenAI
+import json
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Initialize OpenAI client
-# It will automatically look for OPENAI_API_KEY in the environment variables
-client = OpenAI()
-
-def get_resume_feedback(resume_text: str, job_description: str = "") -> dict:
+def get_resume_analysis(resume_text: str, job_description: str = "") -> dict:
     """
-    Sends the resume and optionally the job description to OpenAI to get feedback.
-    Returns a dictionary containing strengths, weaknesses, and suggestions.
+    Sends the resume and optionally the job description to Gemini to get a full analysis.
+    Returns a dictionary containing score, skills, entities, and feedback.
     """
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return {"data": None, "error": "Google API Key is missing."}
+        
+    genai.configure(api_key=api_key)
     
-    # We will use gpt-3.5-turbo as per user preference
-    model = "gpt-3.5-turbo"
+    # Using gemini-2.5-flash with JSON mode enabled
+    model = genai.GenerativeModel(
+        "gemini-2.5-flash", 
+        generation_config={"response_mime_type": "application/json", "temperature": 0.2}
+    )
     
-    prompt = f"""
-You are an expert technical recruiter and resume reviewer.
-Please review the following resume text. 
-{f"Also, consider this job description to see how well it fits: {job_description}" if job_description else ""}
-
-Resume Text:
-{resume_text}
-
-Provide your analysis in the following format exactly, using Markdown:
-### Strengths
-- [Strength 1]
-- [Strength 2]
-...
-
-### Weaknesses
-- [Weakness 1]
-- [Weakness 2]
-...
-
-### Suggestions for Improvement
-- [Suggestion 1]
-- [Suggestion 2]
-...
+    system_prompt = """
+You are an expert technical recruiter and resume analyzer.
+You will be provided with a candidate's resume text and optionally a target job description.
+You must analyze the resume and return a JSON object with the following exact structure:
+{
+    "match_score": <int>, // 0 to 100 representing how well the resume fits the job description. If no job description is provided, return 0. Be realistic and critical.
+    "skills": {
+        "present": ["skill1", "skill2"], // List of technical and soft skills present in the resume
+        "lacked": ["skill3"] // List of skills mentioned in the job description that are missing from the resume (empty if no job description)
+    },
+    "entities": {
+        "organizations": ["org1", "org2"], // Companies, universities, or schools the candidate has been part of
+        "locations": ["loc1", "loc2"], // Geographic locations mentioned
+        "job_titles": ["title1", "title2"] // Roles the candidate has held
+    },
+    "feedback": {
+        "strengths": ["strength1", "strength2"], // Key strong points of the resume
+        "weaknesses": ["weakness1", "weakness2"], // Areas where the resume falls short
+        "suggestions": ["suggestion1", "suggestion2"] // Actionable advice to improve the resume
+    }
+}
+Categorize entities precisely. Only output valid JSON.
 """
 
+    user_prompt = f"Resume Text:\n{resume_text}\n"
+    if job_description:
+        user_prompt += f"\nTarget Job Description:\n{job_description}"
+
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful and professional career advisor."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=800
+        response = model.generate_content(
+            contents=system_prompt + "\n\n" + user_prompt,
         )
         
-        feedback_text = response.choices[0].message.content
-        return {"feedback": feedback_text, "error": None}
+        result_text = response.text
+        analysis_data = json.loads(result_text)
+        return {"data": analysis_data, "error": None}
     
     except Exception as e:
-        return {"feedback": None, "error": str(e)}
+        error_msg = str(e)
+        return {"data": None, "error": f"Gemini API Error: {error_msg}"}

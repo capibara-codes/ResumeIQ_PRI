@@ -3,9 +3,7 @@ import os
 
 from utils.helpers import clean_text, extract_email, extract_phone
 from src.parser import extract_text_from_file
-from src.extractor import extract_entities, extract_skills
-from src.matcher import calculate_match_score
-from src.advisor import get_resume_feedback
+from src.advisor import get_resume_analysis
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -50,9 +48,9 @@ st.markdown("<p class='sub-header'>AI-Powered Resume Analyzer & Enhancer</p>", u
 # --- Sidebar ---
 with st.sidebar:
     st.header("⚙️ Configuration")
-    api_key_input = st.text_input("OpenAI API Key (Optional if set in .env)", type="password")
+    api_key_input = st.text_input("Google API Key (Optional if set in .env)", type="password")
     if api_key_input:
-        os.environ["OPENAI_API_KEY"] = api_key_input
+        os.environ["GOOGLE_API_KEY"] = api_key_input
         
     st.markdown("---")
     st.markdown("### How it works")
@@ -90,22 +88,23 @@ if st.button("🚀 Analyze Resume", type="primary", use_container_width=True):
             email = extract_email(cleaned_text)
             phone = extract_phone(cleaned_text)
             
-            # 4. Extract Entities & Skills
-            entities = extract_entities(cleaned_text)
-            skills = extract_skills(cleaned_text)
+            # 4. Pure AI Analysis
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                st.error("⚠️ Google API Key is missing. Please add it in the sidebar or `.env` file.")
+                st.stop()
             
-            # 5. Match Score
-            match_score = None
-            if job_description:
-                match_score = calculate_match_score(cleaned_text, clean_text(job_description))
+            analysis_result = get_resume_analysis(cleaned_text, clean_text(job_description) if job_description else "")
+            
+            if analysis_result["error"]:
+                st.error(f"Error during analysis: {analysis_result['error']}")
+                st.stop()
                 
-            # 6. AI Feedback
-            api_key = os.getenv("OPENAI_API_KEY")
-            feedback_data = None
-            if api_key:
-                feedback_data = get_resume_feedback(cleaned_text, job_description)
-            else:
-                st.warning("⚠️ OpenAI API Key is missing. AI Feedback will not be generated. Please add it in the sidebar or `.env` file.")
+            data = analysis_result["data"]
+            match_score = data.get("match_score", 0)
+            skills = data.get("skills", {})
+            entities = data.get("entities", {})
+            feedback = data.get("feedback", {})
 
             st.success("Analysis Complete!")
             
@@ -116,7 +115,7 @@ if st.button("🚀 Analyze Resume", type="primary", use_container_width=True):
             score_col, info_col = st.columns([1, 2])
             
             with score_col:
-                if match_score is not None:
+                if job_description:
                     st.markdown(f"<div class='metric-card'><h3>Match Score</h3><h2>{match_score}%</h2></div>", unsafe_allow_html=True)
                     st.progress(match_score / 100.0)
                 else:
@@ -133,28 +132,47 @@ if st.button("🚀 Analyze Resume", type="primary", use_container_width=True):
             ent_col1, ent_col2 = st.columns(2)
             with ent_col1:
                 st.subheader("Extracted Skills")
-                if skills:
+                present_skills = skills.get("present", [])
+                if present_skills:
                     # Using pills/tags format
-                    html_skills = " ".join([f"<span style='background-color:#E5E7EB; padding: 4px 8px; border-radius: 4px; margin: 2px; display: inline-block;'>{s}</span>" for s in set(skills)])
+                    html_skills = " ".join([f"<span style='background-color:#E5E7EB; padding: 4px 8px; border-radius: 4px; margin: 2px; display: inline-block;'>{s}</span>" for s in present_skills])
                     st.markdown(html_skills, unsafe_allow_html=True)
                 else:
                     st.write("No specific tech skills matched.")
                     
+                lacked_skills = skills.get("lacked", [])
+                if lacked_skills:
+                    st.markdown("#### Lacked Skills")
+                    html_lacked = " ".join([f"<span style='background-color:#FEE2E2; color:#991B1B; padding: 4px 8px; border-radius: 4px; margin: 2px; display: inline-block;'>{s}</span>" for s in lacked_skills])
+                    st.markdown(html_lacked, unsafe_allow_html=True)
+                    
             with ent_col2:
                 st.subheader("Entities Detected")
                 st.write("**Organizations/Universities:**")
-                st.write(", ".join(entities.get("ORG", [])) if entities.get("ORG") else "None found")
+                st.write(", ".join(entities.get("organizations", [])) if entities.get("organizations") else "None found")
                 st.write("**Locations:**")
-                st.write(", ".join(entities.get("GPE", [])) if entities.get("GPE") else "None found")
+                st.write(", ".join(entities.get("locations", [])) if entities.get("locations") else "None found")
+                st.write("**Job Titles:**")
+                st.write(", ".join(entities.get("job_titles", [])) if entities.get("job_titles") else "None found")
                 
             # AI Feedback section
-            if feedback_data:
-                st.markdown("---")
-                st.subheader("🤖 AI Advisor Feedback")
-                if feedback_data["error"]:
-                    st.error(f"Error generating feedback: {feedback_data['error']}")
-                else:
-                    st.markdown(feedback_data["feedback"])
+            st.markdown("---")
+            st.subheader("🤖 AI Advisor Feedback")
+            
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                st.markdown("#### Strengths 💪")
+                for s in feedback.get("strengths", []):
+                    st.write(f"- {s}")
+                
+                st.markdown("#### Weaknesses 📉")
+                for w in feedback.get("weaknesses", []):
+                    st.write(f"- {w}")
+            
+            with f_col2:
+                st.markdown("#### Suggestions for Improvement 💡")
+                for s in feedback.get("suggestions", []):
+                    st.write(f"- {s}")
                     
             # Expander for raw text
             with st.expander("View Raw Extracted Text"):

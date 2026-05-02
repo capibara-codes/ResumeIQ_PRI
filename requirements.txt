@@ -3,5 +3,5 @@ PyMuPDF
 python-docx
 spacy
 scikit-learn
-openai
+google-generativeai
 python-dotenv
