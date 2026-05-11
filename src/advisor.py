@@ -2,9 +2,17 @@ import os
 import json
 import google.generativeai as genai
 from dotenv import load_dotenv
+import streamlit as st
 
 # Load environment variables
 load_dotenv()
+
+api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
+
+if api_key:
+    genai.configure(api_key=api_key)
+else:
+    st.error("Missing API Key! Please set GEMINI_API_KEY in Secrets or .env")
 
 def get_resume_analysis(resume_text: str, job_description: str = "") -> dict:
     """
