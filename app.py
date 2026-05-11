@@ -63,7 +63,7 @@ col1, col2 = st.columns([1, 1])
 
 with col1:
     st.subheader("📄 Upload Resume")
-    uploaded_file = st.file_uploader("Choose a PDF or DOCX file", type=['pdf', 'docx', 'doc'])
+    uploaded_file = st.file_uploader("Drag or Drop or browse a PDF or DOCX file", type=['pdf', 'docx', 'doc'])
 
 with col2:
     st.subheader("🎯 Target Job Description")

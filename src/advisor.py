@@ -23,6 +23,7 @@ def get_resume_analysis(resume_text: str, job_description: str = "") -> dict:
         generation_config={"response_mime_type": "application/json", "temperature": 0.2}
     )
     
+    #it is the prompt that we sned to model to get anlysis of resume and job description.
     system_prompt = """
 You are an expert technical recruiter and resume analyzer.
 You will be provided with a candidate's resume text and optionally a target job description.

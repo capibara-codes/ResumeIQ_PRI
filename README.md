@@ -63,7 +63,7 @@ The app will open automatically in your default web browser (typically at `http:
 
 ## How to Use
 
-1. Upload a valid Resume (PDF or DOCX).
+1. Upload or drag or drop a valid Resume (PDF or DOCX).
 2. (Optional) Paste the Target Job Description in the provided text area.
 3. Click on **Analyze Resume**.
 4. View the match score, extracted entities, and the AI's detailed feedback on how to improve your resume!
